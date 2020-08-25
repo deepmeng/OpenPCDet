@@ -1,14 +1,19 @@
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.data import DistributedSampler as _DistributedSampler
+
+from pcdet.utils import common_utils
+
 from .dataset import DatasetTemplate
 from .kitti.kitti_dataset import KittiDataset
-from torch.utils.data import DistributedSampler as _DistributedSampler
-from pcdet.utils import common_utils
+from .nuscenes.nuscenes_dataset import NuScenesDataset
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
     'KittiDataset': KittiDataset,
+    'NuScenesDataset': NuScenesDataset
 }
+
 
 class DistributedSampler(_DistributedSampler):
 
@@ -33,9 +38,8 @@ class DistributedSampler(_DistributedSampler):
         return iter(indices)
 
 
-
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, training=True):
+                     logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0):
 
     dataset = __all__[dataset_cfg.DATASET](
         dataset_cfg=dataset_cfg,
@@ -44,6 +48,11 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
         training=training,
         logger=logger,
     )
+
+    if merge_all_iters_to_one_epoch:
+        assert hasattr(dataset, 'merge_all_iters_to_one_epoch')
+        dataset.merge_all_iters_to_one_epoch(merge=True, epochs=total_epochs)
+
     if dist:
         if training:
             sampler = torch.utils.data.distributed.DistributedSampler(dataset)
